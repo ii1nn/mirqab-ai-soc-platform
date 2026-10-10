@@ -149,14 +149,13 @@ flowchart LR
 
 ## 6. AI / Multi-Agent Architecture
 
-MIRQAB's "AI" layer is **deliberately conservative**.
+MIRQAB uses a **multi-agent, deterministic, rule-based security analysis architecture**. It does not depend on any external LLM.
 
 | Aspect | Actual implementation |
 |---|---|
 | **Default behavior** | **100% deterministic, rule-based analysis.** No language model runs at runtime. Every AI-eligible task has a rule-based fallback, and the fallback is what runs by default. |
 | **"Agents"** | The four agents shown in the interface (Incident Agent, IOC/IOA Agent, MITRE Risk Agent, Recommendation Agent) are **named, least-privilege wrappers around deterministic services**, not autonomous LLM agents. Their decisions are recorded for audit. |
 | **Provider slot** | One AI provider can be configured at a time, never chained. The intended direction is a **self-hosted model** inside the customer's network (`SELF_HOSTED_AI_URL`). This provider is implemented and tested, but **no model has been deployed**. |
-| **Anthropic Claude** | An integration exists **for development comparison only**. It needs both `ANTHROPIC_API_KEY` **and** `ALLOW_EXTERNAL_AI_DEV_ONLY=true`. It is **disabled by default and in the demo**, and it is not used at runtime. |
 | **Safety boundary** | Prompt-injection delimiting, strict output validation (severity and MITRE IDs are checked against the reference data), circuit breaker, timeouts and a concurrency cap. AI output can inform an analyst; **it can never execute a response**. |
 | **Similarity engine** | A native vector-similarity engine finds similar past incidents. It is equivalent to an inner-product index and needs no native FAISS binary. |
 
@@ -249,7 +248,7 @@ Verified scope and limits:
 | Security tooling | Wazuh (Manager API, Active Response), Suricata (EVE JSON), Sysmon, Zeek-format dataset events, MITRE ATT&CK |
 | Infrastructure | Docker, Docker Compose, nginx |
 | Testing | Jest (38 backend test suites, 421 tests passing as of 27 Sep 2026), Playwright-based UI check scripts |
-| Optional AI | Self-hosted provider interface; Anthropic Claude SDK (development-only, disabled by default) |
+| Optional AI | Self-hosted model provider interface (no model deployed) |
 
 ## 14. Project Structure
 
@@ -351,7 +350,7 @@ MIRQAB is a **working prototype and security-engineering project**. It is **not 
 Known limitations, as documented by the team:
 
 1. **Not deployed.** Runs locally in Docker, with no public domain and a self-signed TLS certificate in the development stack.
-2. **No runtime AI model.** Classification, MITRE mapping, risk estimates and recommendations are deterministic. The self-hosted AI provider is implemented but no model is deployed. External AI (Claude) is disabled by default.
+2. **No runtime AI model.** Classification, MITRE mapping, risk estimates and recommendations are deterministic. The self-hosted AI provider is implemented but no model is deployed.
 3. **Device isolation verified in a lab only** (containerized Linux agent). There are no tests on physical devices, the Windows script is not verified, and there is no "release isolation" action.
 4. **Automated containment has not been shown to succeed live** outside the lab.
 5. **Wazuh version:** the lab used a release-candidate build of Wazuh 4.14.7.
