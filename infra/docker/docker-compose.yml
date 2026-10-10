@@ -1,0 +1,137 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # Published so a native `npm run start:dev` backend (running directly on
+    # the host, not in Docker) can reach the same database the containerized
+    # stack uses — a fixed host port is fine here since there's only ever
+    # one postgres replica.
+    ports:
+      - '5432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ../../backend
+    volumes:
+      # Real open-source sample datasets, read at request time by the
+      # *-samples/seed endpoints (see backend/src/modules/monitoring/
+      # dataset-path.util.ts) — mounted read-only rather than baked into the
+      # image so updating a dataset file doesn't require a rebuild. Matches
+      # WORKDIR /app in backend/Dockerfile, so process.cwd() resolves this
+      # directly to /app/datasets inside the container.
+      - ../../datasets:/app/datasets:ro
+      # Trusts the real (self-signed) cert the local Wazuh Manager REST API
+      # presents on :55000 — see NODE_EXTRA_CA_CERTS below. Only present on
+      # disk when infra/docker/wazuh-docker/single-node's stack has been run
+      # locally; harmless if absent unless NODE_EXTRA_CA_CERTS is also set.
+      - ./wazuh-docker/single-node/config/wazuh_api_cert/wazuh-api-ca.pem:/app/wazuh-api-ca.pem:ro
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_ACCESS_EXPIRES_IN: ${JWT_ACCESS_EXPIRES_IN}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN}
+      BCRYPT_SALT_ROUNDS: ${BCRYPT_SALT_ROUNDS}
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      SELF_HOSTED_AI_URL: ${SELF_HOSTED_AI_URL:-}
+      SELF_HOSTED_AI_MODEL: ${SELF_HOSTED_AI_MODEL:-}
+      SELF_HOSTED_AI_TIMEOUT_MS: ${SELF_HOSTED_AI_TIMEOUT_MS:-30000}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL}
+      ALLOW_EXTERNAL_AI_DEV_ONLY: ${ALLOW_EXTERNAL_AI_DEV_ONLY:-false}
+      MONITORING_INGEST_API_KEY: ${MONITORING_INGEST_API_KEY}
+      # Optional — see backend/src/modules/monitoring/wazuh-logtest. Empty by
+      # default (no Wazuh manager in this stack); ingestion degrades gracefully.
+      WAZUH_API_URL: ${WAZUH_API_URL:-}
+      WAZUH_API_USER: ${WAZUH_API_USER:-}
+      WAZUH_API_PASSWORD: ${WAZUH_API_PASSWORD:-}
+      # Only takes effect once a real Active Response command has actually
+      # been registered on that manager (see infra/monitoring/wazuh/active-response/)
+      # — see WazuhActiveResponseProvider's doc comment.
+      WAZUH_ISOLATION_AR_COMMAND: ${WAZUH_ISOLATION_AR_COMMAND:-}
+      # Trusts the local Wazuh Manager API's self-signed cert (see the
+      # matching volume mount above) — required for the fetch() calls in
+      # WazuhActiveResponseProvider to succeed against a locally-generated
+      # dev/test Wazuh stack. Node reads this once at process start.
+      NODE_EXTRA_CA_CERTS: /app/wazuh-api-ca.pem
+      # Optional generic EDR/NAC/firewall provider — see EndpointControlService.
+      ENDPOINT_CONTROL_API_URL: ${ENDPOINT_CONTROL_API_URL:-}
+      ENDPOINT_CONTROL_API_KEY: ${ENDPOINT_CONTROL_API_KEY:-}
+      # Wires RealtimeGateway's cross-instance broadcast adapter (see
+      # backend/src/redis/redis.service.ts) — required, not just a nice-to-have,
+      # once you actually run more than one backend replica (see
+      # `docker compose up --scale backend=N` and infra/docker/nginx/nginx.conf's
+      # $backend_upstream — Phase 11 made that resolve to every live replica).
+      REDIS_URL: redis://redis:6379
+    # No fixed host port here (e.g. "3000:3000") — that would break
+    # `docker compose up --scale backend=N` outright, since Compose refuses
+    # to scale a service with a published *fixed* host port (N replicas
+    # can't all bind the same one). A bare container port with no host port
+    # specified is different: Docker assigns each replica its own random
+    # ephemeral host port, so this coexists with scaling. See
+    # docs/phases/phase-12.md for why this exists — it's how
+    # apps/employee-desktop (which expects a bare, un-proxied,
+    # plain-HTTP backend, not the TLS-terminated nginx entrypoint the SOC
+    # Dashboard uses) can point at this same containerized backend.
+    ports:
+      - '3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  soc-dashboard:
+    build:
+      context: ../../apps/soc-dashboard
+      args:
+        VITE_API_BASE_URL: /api/v1
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.25-alpine
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    ports:
+      - '80:80'
+      - '443:443'
+    depends_on:
+      - backend
+      - soc-dashboard
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:

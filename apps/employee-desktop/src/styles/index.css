@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * Same Mirqab token set as apps/soc-dashboard/src/styles/index.css — kept
+ * in sync manually (no shared frontend package exists yet; see
+ * packages/ui-kit, currently an empty stub) so both apps read from one
+ * consistent brand palette instead of the two unrelated ones that existed
+ * before Phase 1 (this app previously had its own cyan-only scheme).
+ */
+/* Space-separated "R G B" channels, not hex — required for Tailwind's
+   `rgb(var(--x) / <alpha-value>)` opacity-modifier pattern (see
+   tailwind.config.ts's colors block; same reasoning as apps/soc-dashboard's
+   matching token file). */
+:root {
+  --mirqab-bg: 11 8 23;
+  --mirqab-bg-elevated: 15 11 31;
+  --mirqab-surface: 21 15 38;
+  --mirqab-surface-elevated: 26 19 48;
+  --mirqab-border: rgba(148, 113, 255, 0.16);
+  --mirqab-border-strong: rgba(148, 113, 255, 0.32);
+
+  --mirqab-accent: 124 58 237;
+  --mirqab-accent-pink: 236 72 153;
+
+  --mirqab-healthy: 20 224 196;
+  --mirqab-critical: 255 59 92;
+  --mirqab-high: 245 158 11;
+  --mirqab-info: 59 130 246;
+
+  --mirqab-text-primary: 241 245 249;
+  --mirqab-text-secondary: 148 163 184;
+  --mirqab-text-muted: 100 116 139;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    background-color: rgb(var(--mirqab-bg));
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--mirqab-accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply rounded-2xl border border-mirqab-border bg-white/[0.04] backdrop-blur-md shadow-xl shadow-black/20;
+  }
+  .titlebar-drag {
+    -webkit-app-region: drag;
+  }
+  .titlebar-no-drag {
+    -webkit-app-region: no-drag;
+  }
+}

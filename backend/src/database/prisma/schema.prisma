@@ -1,0 +1,696 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Roles enforced by the RBAC guard across both Mirqab applications.
+enum Role {
+  ADMIN
+  SECURITY_ANALYST
+  IT_TECHNICIAN
+  EMPLOYEE
+}
+
+enum OrgStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+/// Phase 2.6A - the multi-tenant boundary. Every company using Mirqab gets
+/// exactly one row here; every organization-owned resource (User,
+/// Department, Incident, Device, Ticket, AuditLog, WeeklyReport) carries an
+/// organizationId back to it. See common/guards/department-access.util.ts's
+/// assertOrganizationAccess/organizationScopeWhere for how this boundary is
+/// enforced server-side - never trusted from the client, always resolved
+/// from the authenticated user's own DB row, the same pattern already
+/// established for departmentId (see JwtStrategy.validate()).
+model Organization {
+  id        String    @id @default(uuid())
+  name      String
+  slug      String    @unique
+  status    OrgStatus @default(ACTIVE)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  users       User[]
+  departments Department[]
+  incidents   Incident[]
+  devices     Device[]
+  tickets     Ticket[]
+  auditLogs   AuditLog[]
+  weeklyReports WeeklyReport[]
+
+  @@map("organizations")
+}
+
+/// Provenance of an ingested event/case - lets the DB and UI distinguish real
+/// open-source-dataset-derived data from Simulation Mode's synthetic traffic
+/// and from live-agent/manual ingestion, instead of every row looking
+/// identical once it's an Incident (see docs/integrations' original gap: no
+/// field anywhere tracked where an Incident actually came from).
+enum EventSource {
+  /// A real vendor forwarder/agent hit /monitoring/* directly (production path).
+  LIVE_AGENT
+  /// Replayed from a real datasets/* file via a *-samples/seed endpoint.
+  OPEN_SOURCE_DATASET
+  /// Synthetic Simulation Mode traffic (apps/soc-dashboard/src/simulation).
+  SIMULATION
+  /// Ad-hoc POST /ai/analyze call not tagged as Simulation - test scripts,
+  /// curl, analyst-pasted text. The honest "unknown/other" bucket.
+  MANUAL_TEST
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  role         Role      @default(EMPLOYEE)
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+
+  /// Requirement #30 (OWASP API - Broken Object Level Authorization): scopes
+  /// an IT_TECHNICIAN's case access to this department only (see
+  /// common/guards/incident-access.guard.ts). Null means org-wide access -
+  /// the default for ADMIN/SECURITY_ANALYST, who need to correlate incidents
+  /// across departments to do real SOC work. An IT_TECHNICIAN with a null
+  /// department is treated as having access to nothing, not everything -
+  /// see the guard's fail-closed comment.
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+
+  /// Phase 2.6A. Nullable - and deliberately stays nullable, not just
+  /// during migration. A self-signup account (see AuthService.signup) has
+  /// no organization to join until an administrator assigns one (the
+  /// invitation system that would let it choose one at signup time is
+  /// explicitly out of scope for this phase); until then it is a real,
+  /// activatable account with organizationId null, and every
+  /// organization-scoped guard fail-closes such an account to zero access
+  /// (see assertOrganizationAccess) rather than granting it anything.
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  refreshTokens      RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([departmentId])
+  @@index([organizationId])
+  @@map("users")
+}
+
+/// One row per issued refresh token. Tokens are rotated on every use
+/// (see AuthService.refresh) and the raw JWT is never persisted - only
+/// a SHA-256 digest, so a leaked database dump cannot be replayed directly.
+model RefreshToken {
+  id         String    @id @default(uuid())
+  tokenHash  String    @unique
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+/// One row per issued "forgot password" request. The raw token is emailed
+/// (or, until an SMTP provider is wired up, returned directly to the
+/// client - see AuthService.forgotPassword) and only its SHA-256 digest is
+/// stored, mirroring RefreshToken's leak-resistance approach. Single-use:
+/// consumed tokens are marked usedAt instead of being deleted, so a replay
+/// is rejected rather than silently accepted.
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  tokenHash String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IncidentStatus {
+  OPEN
+  INVESTIGATING
+  CONTAINED
+  RESOLVED
+  CLOSED
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum NotificationAudience {
+  EMPLOYEE
+  ANALYST
+}
+
+/// The output of the AI engine's triage pipeline (see AiService.analyzeLog).
+/// departmentId is derived server-side from the target device at analysis
+/// time (see AiService) - callers only ever supply deviceId.
+model Incident {
+  id                 String         @id @default(uuid())
+  /// Human-readable Case ID ("INC-20260814-0001"), assigned once at creation
+  /// via an atomic per-day counter (see CaseCounter) - `id` stays the real
+  /// FK/PK everywhere; this is the display/reporting identifier described in
+  /// the Case ID correlation design.
+  caseId             String         @unique
+  title              String
+  description        String
+  severity           Severity
+  mitreTechniqueId   String
+  mitreTechniqueName String
+  mitreTactic        String
+  departmentId       String?
+  department         Department?    @relation(fields: [departmentId], references: [id])
+  /// Phase 2.6A. Nullable for the same reason departmentId already is -
+  /// derived from the resolved device's department when a device is known;
+  /// left null on the same "device unresolved at ingestion" path that
+  /// already leaves departmentId null (see AiService.analyzeLog). Never
+  /// client-supplied, same rule as departmentId.
+  organizationId     String?
+  organization       Organization?  @relation(fields: [organizationId], references: [id])
+  deviceId           String?
+  device             Device?        @relation(fields: [deviceId], references: [id])
+  sourceExcerpt      String
+  status             IncidentStatus @default(OPEN)
+  /// 'claude' when the Anthropic API produced this classification, 'rule-based-fallback'
+  /// when ANTHROPIC_API_KEY was unset or the API call failed - see ClaudeService.
+  generatedBy        String
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  /// Timestamp of the most recent evidence attached to this case (the
+  /// founding event at creation, or the latest correlated event after -
+  /// see AiService.analyzeLog). Anchors the 72h sliding correlation window:
+  /// a case keeps absorbing new evidence as long as it keeps arriving within
+  /// 72h of the last piece, rather than a fixed window from creation.
+  lastEvidenceAt DateTime @default(now())
+
+  /// Stamped the first time status leaves OPEN / the first time it enters RESOLVED
+  /// (see AiService.updateIncidentStatus) - never backfilled or inferred, so both
+  /// stay null until an analyst genuinely advances the incident that far.
+  acknowledgedAt DateTime?
+  resolvedAt     DateTime?
+
+  /// Analyst-authored post-incident review text (see AiService.updateIncidentResolution)
+  /// - free text, never auto-generated, all null until an analyst fills them in.
+  rootCause       String?
+  finalResolution String?
+  lessonsLearned  String?
+
+  /// Everything below is extracted from the real `sourceExcerpt` text at
+  /// classification time (see modules/ai/enrichment) - null when the text
+  /// doesn't contain that signal, never fabricated. Powers the Similar
+  /// Attack Analysis comparison engine (modules/ai/comparison).
+  malwareFamily    String?
+  sourceIp         String?
+  sourceCountry    String?
+  destinationAsset String?
+  iocs             String[] @default([])
+  detectionRule    String?
+  userAccount      String?
+
+  /// Where this case's founding event actually came from - see EventSource.
+  /// Never inferred after the fact; set once at creation by the caller
+  /// (MonitoringService/*-samples services/AiService.analyzeLog), defaulting
+  /// to MANUAL_TEST only when nothing explicitly claims a source.
+  ingestSource  EventSource @default(MANUAL_TEST)
+  /// Which datasets/* folder this came from when ingestSource is
+  /// OPEN_SOURCE_DATASET (e.g. "wazuh-sample-logs", "loghub", "PcapMonkey",
+  /// "EVTX-to-MITRE-Attack") - null for every other source.
+  datasetOrigin String?
+  /// The founding event's untouched original text/JSON, exactly as read from
+  /// its source (a datasets/* file line, or the raw DTO payload) - distinct
+  /// from `sourceExcerpt`, which is the normalized/human-readable text the AI
+  /// actually classifies. Preserved so evidence can always be traced back to
+  /// its real, unmodified origin. Null only when no caller supplied one.
+  rawEvent      String?
+
+  tickets             Ticket[]
+  memory              IncidentMemory?
+  notifications       Notification[]
+  actions             IncidentAction[]
+  evidence            IncidentEvidence[]
+  indicators          Indicator[]
+  persistenceFindings PersistenceFinding[]
+  agentDecisions      AiAgentDecision[]
+
+  @@index([departmentId])
+  @@index([deviceId])
+  @@index([organizationId])
+  @@map("incidents")
+}
+
+enum AiAgentName {
+  INCIDENT_AGENT
+  IOC_IOA_AGENT
+  MITRE_RISK_AGENT
+  RECOMMENDATION_AGENT
+}
+
+/// One row per decision a named AI agent made on a case - requirement #29's
+/// audit trail. Each agent's actual data/tool access is enforced by what
+/// AiService passes it (see modules/ai/agents/agent-permissions.ts for the
+/// documented least-privilege boundary each one operates under); this table
+/// is the record of what it was given and what it returned, not a
+/// permission-enforcement mechanism itself. `evidenceRefs` lets an analyst
+/// trace a decision back to the specific evidence/indicator/finding rows
+/// that informed it, rather than trusting the AI's word for it.
+model AiAgentDecision {
+  id           String      @id @default(uuid())
+  incidentId   String
+  incident     Incident    @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  agent        AiAgentName
+  action       String
+  /// 'claude' | 'rule-based-fallback' | 'deterministic' - deterministic covers
+  /// the regex/keyword detection agents, which never call an LLM at all.
+  generatedBy  String
+  confidence   Int?
+  evidenceRefs String[]    @default([])
+  summary      String
+  createdAt    DateTime    @default(now())
+
+  @@index([incidentId])
+  @@map("ai_agent_decisions")
+}
+
+/// One row per raw event that fed into this case - the founding event at
+/// creation, plus every subsequent event the correlation engine decided
+/// belongs to the same case (see AiService.analyzeLog / findCorrelatedCase).
+/// Exists because `Incident.sourceExcerpt` is a single field: without this,
+/// correlating a 2nd/3rd event into an existing case would silently
+/// overwrite or drop the earlier raw log text. Also the pattern later
+/// detection modules (persistence, IOC/IOA, C2) attach their own findings
+/// through, keyed by the same Case ID.
+model IncidentEvidence {
+  id                 String   @id @default(uuid())
+  incidentId         String
+  incident           Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  sourceExcerpt      String
+  severity           Severity
+  mitreTechniqueId   String
+  mitreTechniqueName String
+  mitreTactic        String
+  /// 'claude' | 'rule-based-fallback' - same meaning as Incident.generatedBy, for this event.
+  generatedBy        String
+  iocs               String[] @default([])
+  /// The compareIncidents()-derived score (0-100) that matched this event to
+  /// the existing case. Null for the founding event of a case (nothing to
+  /// score against yet).
+  correlationScore   Int?
+  /// Same meaning as Incident.ingestSource/datasetOrigin/rawEvent, for this
+  /// specific piece of evidence - a case correlated from multiple sources
+  /// (e.g. a Wazuh event plus a later PCAP event) can have per-evidence
+  /// provenance that differs from the case's founding event.
+  ingestSource  EventSource @default(MANUAL_TEST)
+  datasetOrigin String?
+  rawEvent      String?
+  createdAt          DateTime @default(now())
+
+  indicators          Indicator[]
+  persistenceFindings PersistenceFinding[]
+
+  @@index([incidentId])
+  @@map("incident_evidence")
+}
+
+enum IndicatorCategory {
+  IOC
+  IOA
+}
+
+enum IndicatorType {
+  IP
+  DOMAIN
+  URL
+  HASH
+  EMAIL
+  FILE_PATH
+  REGISTRY_KEY
+  MUTEX
+  USER_ACCOUNT
+  BEHAVIOR
+}
+
+/// A single Indicator of Compromise (static artifact - IP/hash/domain/etc.)
+/// or Indicator of Attack (behavioral pattern - e.g. "encoded PowerShell
+/// persistence", "known C2 framework mention") extracted deterministically
+/// from real evidence text. `subtype` is a free-text refinement used by
+/// detection modules and the Weekly SOC Report to group findings (e.g.
+/// 'c2-framework', 'beaconing', 'dns-tunneling', 'credential-dumping',
+/// 'lateral-movement') without needing a new enum per detector. Never
+/// fabricated - absence of a signal in the text means no row, not a guess.
+model Indicator {
+  id               String            @id @default(uuid())
+  incidentId       String
+  incident         Incident          @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  evidenceId       String?
+  evidence         IncidentEvidence? @relation(fields: [evidenceId], references: [id], onDelete: SetNull)
+  category         IndicatorCategory
+  type             IndicatorType
+  value            String
+  description      String?
+  subtype          String?
+  mitreTechniqueId String?
+  /// 0-100, heuristic - never claimed as certainty. See detection/*.util.ts for how it's derived.
+  confidence       Int
+  firstSeenAt      DateTime          @default(now())
+  lastSeenAt       DateTime          @default(now())
+
+  @@index([incidentId])
+  @@index([value])
+  @@index([subtype])
+  @@map("indicators")
+}
+
+enum PersistenceType {
+  SCHEDULED_TASK
+  WINDOWS_SERVICE
+  STARTUP_FOLDER
+  REGISTRY_RUN_KEY
+  WMI_SUBSCRIPTION
+  LOGIN_SCRIPT
+  CRON_JOB
+  POWERSHELL_PROFILE
+  ACCOUNT_CREDENTIAL_CHANGE
+  OTHER
+}
+
+/// A persistence-mechanism finding - behavioral, not just a MITRE technique
+/// tag. Detected deterministically from real evidence text (see
+/// detection/persistence.util.ts); never claimed when the evidence is
+/// insufficient (no match = no row). Attached to the same Case ID as the
+/// Incident it was found on rather than spawning a separate case, per the
+/// correlation design.
+model PersistenceFinding {
+  id                 String            @id @default(uuid())
+  incidentId         String
+  incident           Incident          @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  evidenceId         String?
+  evidence           IncidentEvidence? @relation(fields: [evidenceId], references: [id], onDelete: SetNull)
+  type               PersistenceType
+  endpoint           String?
+  userAccount        String?
+  process            String?
+  command            String?
+  evidenceText       String
+  mitreTechniqueId   String
+  mitreTechniqueName String
+  mitreTactic        String
+  /// 0-100, heuristic confidence - see detection/persistence.util.ts.
+  confidence         Int
+  risk               Severity
+  createdAt          DateTime          @default(now())
+
+  @@index([incidentId])
+  @@map("persistence_findings")
+}
+
+/// Backs atomic, per-day Case ID sequence generation ("INC-20260814-0001").
+/// One row per calendar day (dateKey = "YYYYMMDD"); incremented via a single
+/// atomic upsert (`INSERT ... ON CONFLICT DO UPDATE SET lastSeq = lastSeq + 1`)
+/// so concurrent ingestion (bursts of Wazuh events) can never hand out the
+/// same Case ID twice.
+model CaseCounter {
+  dateKey String @id
+  lastSeq Int    @default(0)
+
+  @@map("case_counters")
+}
+
+enum IncidentActionType {
+  ISOLATE_DEVICE
+  DISABLE_ACCOUNT
+  BLOCK_IP
+  BLOCK_HASH
+  RESET_PASSWORD
+  UPDATE_FIREWALL
+  KILL_PROCESS
+  REMOVE_MALWARE
+  COLLECT_FORENSICS
+  MONITOR_DEPARTMENT
+}
+
+enum IncidentActionOutcome {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+/// Requirement #6: AI may recommend a high-impact action but must never
+/// execute one on its own - NOT_REQUIRED covers actions a human directly
+/// initiated themselves (creating the row IS the approval), PENDING_APPROVAL
+/// is where every AI-recommended high-impact action starts (see
+/// AiService.applyRecommended / HIGH_IMPACT_ACTION_TYPES), and outcome can
+/// only move off PENDING once a human has explicitly APPROVED it.
+enum ActionApprovalStatus {
+  NOT_REQUIRED
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+}
+
+/// A real, analyst-logged response action against an incident - either
+/// applied from an AI recommendation or recorded manually. This is the
+/// genuine history the Similar Attack Analysis recommendation engine learns
+/// from; there is no seeded/fake history, so recommendations stay empty
+/// until analysts actually log actions.
+model IncidentAction {
+  id             String                 @id @default(uuid())
+  incidentId     String
+  incident       Incident               @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  type           IncidentActionType
+  outcome        IncidentActionOutcome  @default(PENDING)
+  performedBy    String
+  notes          String?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  approvalStatus ActionApprovalStatus   @default(NOT_REQUIRED)
+  /// Who/what asked for this action - an analyst email for a manual entry,
+  /// or 'ai:recommendation-agent' when it came from applyRecommended().
+  requestedBy    String?
+  approvedBy     String?
+  approvedAt     DateTime?
+  rejectedReason String?
+
+  @@index([incidentId])
+  @@map("incident_actions")
+}
+
+/// Auto-created by the AI engine when an incident is classified HIGH or CRITICAL.
+/// departmentId/deviceId are denormalized (copied) from the parent incident at
+/// creation time purely for cheap list/filter queries on the dashboard's
+/// Tickets page - not FK relations, since a ticket's context never changes
+/// once created.
+model Ticket {
+  id           String       @id @default(uuid())
+  /// Human-readable sequential identifier (formatted "TCK-000123" at the API
+  /// layer) - a genuine DB counter, distinct from the internal uuid `id`.
+  ticketNumber Int          @unique @default(autoincrement())
+  incidentId   String
+  incident     Incident     @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  title        String
+  status       TicketStatus @default(OPEN)
+  severity     Severity
+  assignee     String?
+  departmentId String?
+  /// Phase 2.6A. Denormalized (no FK relation), same reasoning and the
+  /// same "never changes once created" rule as departmentId above - copied
+  /// from the parent Incident at creation time, not re-derived later.
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  deviceId     String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([incidentId])
+  @@index([organizationId])
+  @@map("tickets")
+}
+
+model Department {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Phase 2.6A/2.6B: departments are company-scoped - two organizations
+  /// can each have their own "Engineering" department, so uniqueness on
+  /// `name` alone (the old constraint) is replaced by uniqueness within
+  /// one organization. Required - enforced NOT NULL by migration
+  /// 20260909003000_enforce_organization_not_null after a verified
+  /// zero-NULL backfill (see that migration for the full data-safety
+  /// review). This schema declaration was updated to match the database
+  /// state that migration already applied - not a new migration itself.
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  devices   Device[]
+  incidents Incident[]
+  users     User[]
+
+  @@unique([organizationId, name])
+  @@map("departments")
+}
+
+/// Status (online/at-risk) is never stored here - DevicesService derives it
+/// at query time from recent open incidents, the same "no stale status
+/// column" approach the SOC Dashboard used client-side in Phase 4.
+model Device {
+  id            String   @id @default(uuid())
+  hostname      String   @unique
+  departmentId  String
+  department    Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  /// Phase 2.6A/2.6B. Required - enforced NOT NULL by migration
+  /// 20260909003000_enforce_organization_not_null after a verified
+  /// zero-NULL backfill. Every device is registered into a department, and
+  /// every department belongs to exactly one organization, so this is
+  /// always resolvable in practice. This schema declaration was updated to
+  /// match the database state that migration already applied.
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  os            String
+  /// Every device in this product is an employee endpoint registered by the
+  /// desktop agent (see apps/employee-desktop) - defaulted, not inferred per-incident.
+  deviceType    String   @default("workstation")
+  ipAddress     String
+  baselineScore Int      @default(85)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  incidents Incident[]
+
+  @@index([departmentId])
+  @@index([organizationId])
+  @@map("devices")
+}
+
+/// Draft security configuration, toggled from the SOC Dashboard's Policies
+/// page. Every toggle is written to AuditLog.
+model Policy {
+  id                String   @id @default(uuid())
+  name              String   @unique
+  description       String
+  category          String
+  enabled           Boolean  @default(true)
+  compliancePercent Int
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("policies")
+}
+
+/// A real, persistent audit trail (sign-in/out, ticket changes, policy
+/// toggles, user activation) - replaces the Phase 4 dashboard's
+/// session-scoped client-side log.
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorEmail String
+  action     String
+  target     String?
+  /// Phase 2.6A. Resolved server-side from the acting user's own
+  /// organizationId (see AuditLogsService.log) - `target` is a loosely-typed
+  /// free string (an incident id, ticket id, user id, or "N/A" for a
+  /// system/login-level event), not reliable enough to derive organization
+  /// ownership from on its own, so this is a direct column rather than
+  /// something inferred through a relation. Nullable because the acting
+  /// user's own organizationId can itself be null (see User.organizationId)
+  /// or the actor can be a synthetic system identity ("system:*") with no
+  /// User row at all.
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@index([organizationId])
+  @@map("audit_logs")
+}
+
+/// Backs the Incident Similarity Engine. `vector` is a feature-hashed,
+/// L2-normalized embedding (see similarity-engine/vector.util.ts) - an
+/// exact-search FAISS IndexFlatIP equivalent implemented natively so the
+/// backend doesn't depend on a native FAISS binary. See docs/phases/phase-5.md.
+model IncidentMemory {
+  id         String   @id @default(uuid())
+  incidentId String   @unique
+  incident   Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  vector     Float[]
+  textDigest String
+  createdAt  DateTime @default(now())
+
+  @@map("incident_memory")
+}
+
+/// AI-generated notifications: an employee-friendly plain-language message
+/// and a brief analyst-facing heads-up, created automatically per incident.
+model Notification {
+  id         String               @id @default(uuid())
+  incidentId String
+  incident   Incident             @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  audience   NotificationAudience
+  title      String
+  body       String
+  createdAt  DateTime             @default(now())
+
+  @@index([incidentId])
+  @@map("notifications")
+}
+
+/// Requirement #33-38 - the persisted Weekly SOC Report, distinct from the
+/// on-demand, unpersisted Case-Based Digital Forensics Report (see
+/// modules/reports/case-report.service.ts). Persisted (unlike the Case
+/// report) because requirement #38 explicitly needs history/search/
+/// re-download of past weeks, not just on-demand generation.
+/// (periodStart, periodEnd) is unique - "regenerate a previous week" is an
+/// upsert that replaces that week's report rather than accumulating
+/// duplicates every time someone re-runs it.
+model WeeklyReport {
+  id          String   @id @default(uuid())
+  /// Monday 00:00:00 UTC of the reporting week.
+  periodStart DateTime
+  /// Sunday 23:59:59.999 UTC of the reporting week.
+  periodEnd   DateTime
+  generatedAt DateTime @default(now())
+  /// An analyst email for a manual/regenerated report, or 'system:weekly-report-scheduler'.
+  generatedBy String
+  filename    String
+  pdf         Bytes
+  /// Phase 2.6A. Nullable for schema-uniformity with AuditLog (both are
+  /// actor-derived rather than carrying their own natural ownership), even
+  /// though in practice every row is created by an authenticated caller
+  /// with a resolvable org - see WeeklyReportService. Existing weekly-report
+  /// generation/listing/download becomes scoped to the caller's own
+  /// organization once this is populated.
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  @@unique([periodStart, periodEnd])
+  @@index([organizationId])
+  @@map("weekly_reports")
+}

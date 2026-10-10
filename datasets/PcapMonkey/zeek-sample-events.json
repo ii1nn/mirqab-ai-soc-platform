@@ -1,0 +1,620 @@
+﻿[
+    {
+        "_score":  1.0,
+        "_source":  {
+                        "@timestamp":  "2020-12-01T23:40:52.974Z",
+                        "destination":  {
+                                            "address":  "224.0.0.251",
+                                            "bytes":  0,
+                                            "ip":  "224.0.0.251",
+                                            "mac":  "01:00:5e:00:00:fb",
+                                            "packets":  0,
+                                            "port":  5353
+                                        },
+                        "ecs":  {
+                                    "version":  "1.9.0"
+                                },
+                        "event":  {
+                                      "category":  [
+                                                       "network"
+                                                   ],
+                                      "dataset":  "zeek.connection",
+                                      "duration":  5795956,
+                                      "kind":  "event",
+                                      "module":  "zeek",
+                                      "type":  [
+                                                   "connection",
+                                                   "start"
+                                               ]
+                                  },
+                        "fileset":  {
+                                        "name":  "connection"
+                                    },
+                        "input":  {
+                                      "type":  "log"
+                                  },
+                        "log":  {
+                                    "file":  {
+                                                 "path":  "/var/log/bro/current/conn.log"
+                                             }
+                                },
+                        "network":  {
+                                        "bytes":  144,
+                                        "community_id":  "1:vfjyAK0LapAriAdnWwXS3KljSLM=",
+                                        "direction":  "outbound",
+                                        "packets":  2,
+                                        "transport":  "udp"
+                                    },
+                        "related":  {
+                                        "ip":  [
+                                                   "10.12.1.101",
+                                                   "224.0.0.251"
+                                               ]
+                                    },
+                        "service":  {
+                                        "type":  "zeek"
+                                    },
+                        "source":  {
+                                       "address":  "10.12.1.101",
+                                       "bytes":  144,
+                                       "ip":  "10.12.1.101",
+                                       "mac":  "10:c5:95:2b:13:05",
+                                       "packets":  2,
+                                       "port":  5353
+                                   },
+                        "tags":  [
+                                     "zeek.connection",
+                                     "local_orig"
+                                 ],
+                        "temp":  {
+
+                                 },
+                        "zeek":  {
+                                     "connection":  {
+                                                        "history":  "D",
+                                                        "local_orig":  true,
+                                                        "local_resp":  false,
+                                                        "missed_bytes":  0,
+                                                        "state":  "S0",
+                                                        "state_message":  "Connection attempt seen, no reply."
+                                                    }
+                                 }
+                    },
+        "_type":  "_doc"
+    },
+    {
+        "_score":  1.0,
+        "_source":  {
+                        "@timestamp":  "2020-12-01T23:40:52.974Z",
+                        "destination":  {
+                                            "address":  "224.0.0.251",
+                                            "ip":  "224.0.0.251",
+                                            "port":  5353
+                                        },
+                        "dns":  {
+                                    "answers":  [
+                                                    {
+                                                        "data":  "10.12.1.101",
+                                                        "ttl":  60
+                                                    }
+                                                ],
+                                    "header_flags":  "AA",
+                                    "id":  "0",
+                                    "question":  {
+                                                     "class":  "IN",
+                                                     "name":  "desktop-natural.local",
+                                                     "registered_domain":  "desktop-natural.local",
+                                                     "top_level_domain":  "local",
+                                                     "type":  "*"
+                                                 },
+                                    "resolved_ip":  [
+                                                        "10.12.1.101"
+                                                    ],
+                                    "response_code":  "NOERROR",
+                                    "type":  "answer"
+                                },
+                        "ecs":  {
+                                    "version":  "1.9.0"
+                                },
+                        "event":  {
+                                      "category":  [
+                                                       "network"
+                                                   ],
+                                      "dataset":  "zeek.dns",
+                                      "duration":  5795955.657958984,
+                                      "kind":  "event",
+                                      "module":  "zeek",
+                                      "outcome":  "success",
+                                      "type":  [
+                                                   "connection",
+                                                   "info",
+                                                   "protocol"
+                                               ]
+                                  },
+                        "fileset":  {
+                                        "name":  "dns"
+                                    },
+                        "input":  {
+                                      "type":  "log"
+                                  },
+                        "log":  {
+                                    "file":  {
+                                                 "path":  "/var/log/bro/current/dns.log"
+                                             }
+                                },
+                        "network":  {
+                                        "community_id":  "1:vfjyAK0LapAriAdnWwXS3KljSLM=",
+                                        "transport":  "udp"
+                                    },
+                        "related":  {
+                                        "ip":  [
+                                                   "10.12.1.101",
+                                                   "224.0.0.251"
+                                               ]
+                                    },
+                        "service":  {
+                                        "type":  "zeek"
+                                    },
+                        "source":  {
+                                       "address":  "10.12.1.101",
+                                       "ip":  "10.12.1.101",
+                                       "port":  5353
+                                   },
+                        "tags":  [
+                                     "zeek.dns"
+                                 ],
+                        "zeek":  {
+                                     "dns":  {
+                                                 "AA":  true,
+                                                 "RA":  false,
+                                                 "RD":  false,
+                                                 "TC":  false,
+                                                 "TTLs":  [
+                                                              60
+                                                          ],
+                                                 "answers":  [
+                                                                 "10.12.1.101"
+                                                             ],
+                                                 "qclass":  1,
+                                                 "qclass_name":  "C_INTERNET",
+                                                 "qtype":  255,
+                                                 "qtype_name":  "*",
+                                                 "query":  "desktop-natural.local",
+                                                 "rcode":  0,
+                                                 "rcode_name":  "NOERROR",
+                                                 "rejected":  false,
+                                                 "rtt":  0.005795955657958984,
+                                                 "trans_id":  "0"
+                                             }
+                                 }
+                    },
+        "_type":  "_doc"
+    },
+    {
+        "_score":  1.0,
+        "_source":  {
+                        "@timestamp":  "2020-12-01T23:41:42.845Z",
+                        "destination":  {
+                                            "address":  "5.44.43.72",
+                                            "as":  {
+                                                       "number":  202423,
+                                                       "organization":  {
+                                                                            "name":  "PE Viktor Tyurin"
+                                                                        }
+                                                   },
+                                            "geo":  {
+                                                        "city_name":  "Moscow",
+                                                        "continent_name":  "Europe",
+                                                        "country_iso_code":  "RU",
+                                                        "country_name":  "Russia",
+                                                        "location":  {
+                                                                         "lat":  55.7527,
+                                                                         "lon":  37.6172
+                                                                     },
+                                                        "region_iso_code":  "RU-MOW",
+                                                        "region_name":  "Moscow"
+                                                    },
+                                            "ip":  "5.44.43.72",
+                                            "port":  80
+                                        },
+                        "ecs":  {
+                                    "version":  "1.9.0"
+                                },
+                        "event":  {
+                                      "action":  "get",
+                                      "category":  [
+                                                       "network",
+                                                       "web"
+                                                   ],
+                                      "dataset":  "zeek.http",
+                                      "kind":  "event",
+                                      "module":  "zeek",
+                                      "outcome":  "success",
+                                      "type":  [
+                                                   "connection",
+                                                   "info",
+                                                   "protocol"
+                                               ]
+                                  },
+                        "fileset":  {
+                                        "name":  "http"
+                                    },
+                        "http":  {
+                                     "request":  {
+                                                     "body":  {
+                                                                  "bytes":  0
+                                                              },
+                                                     "method":  "GET"
+                                                 },
+                                     "response":  {
+                                                      "body":  {
+                                                                   "bytes":  215552
+                                                               },
+                                                      "status_code":  200
+                                                  },
+                                     "version":  "1.1"
+                                 },
+                        "input":  {
+                                      "type":  "log"
+                                  },
+                        "log":  {
+                                    "file":  {
+                                                 "path":  "/var/log/bro/current/http.log"
+                                             }
+                                },
+                        "network":  {
+                                        "community_id":  "1:Bd6LP5/PjnQNJEWElGzz99oUzOc=",
+                                        "transport":  "tcp"
+                                    },
+                        "related":  {
+                                        "ip":  [
+                                                   "10.12.1.101",
+                                                   "5.44.43.72"
+                                               ]
+                                    },
+                        "service":  {
+                                        "type":  "zeek"
+                                    },
+                        "source":  {
+                                       "address":  "10.12.1.101",
+                                       "ip":  "10.12.1.101",
+                                       "port":  49790
+                                   },
+                        "tags":  [
+                                     "zeek.http"
+                                 ],
+                        "url":  {
+                                    "domain":  "t497sword.com",
+                                    "original":  "/analytics/m2G0QdFFlMNhK1x9mHmWCPgkGQEztbhWqSTyKNnzIZEmV35KJkTO2HdXZv_7BzD1KcziQgvY_y9yhZI/bzm12?DUHC=IlEAxkQxRpfRD\u0026Lk_M=jJDaUNLTmiPHVoFXT\u0026BuN_G=UytaScjGNxHYmqc_\u0026QQvUO=GhOwZkkBdMBH\u0026eBP=zrYRQpMykQBxbk_FS\u0026dm=gqbPvgKocPBFWw",
+                                    "port":  80
+                                },
+                        "user_agent":  {
+                                           "device":  {
+                                                          "name":  "Spider"
+                                                      },
+                                           "name":  "Other",
+                                           "original":  "Mozilla/4.0 (compatible; Win32; WinHttp.WinHttpRequest.5)",
+                                           "os":  {
+                                                      "full":  "Windows 95",
+                                                      "name":  "Windows",
+                                                      "version":  "95"
+                                                  }
+                                       },
+                        "zeek":  {
+                                     "http":  {
+                                                  "resp_filenames":  [
+                                                                         "bzm12"
+                                                                     ],
+                                                  "resp_fuids":  [
+                                                                     "FTwc251HQMcMKffXa2"
+                                                                 ],
+                                                  "resp_mime_types":  [
+                                                                          "application/x-dosexec"
+                                                                      ],
+                                                  "status_msg":  "OK",
+                                                  "tags":  [
+
+                                                           ],
+                                                  "trans_depth":  1
+                                              }
+                                 }
+                    },
+        "_type":  "_doc"
+    },
+    {
+        "_score":  1.0,
+        "_source":  {
+                        "@timestamp":  "2020-12-01T23:42:35.741Z",
+                        "destination":  {
+                                            "address":  "167.71.138.137",
+                                            "as":  {
+                                                       "number":  14061,
+                                                       "organization":  {
+                                                                            "name":  "DigitalOcean, LLC"
+                                                                        }
+                                                   },
+                                            "geo":  {
+                                                        "city_name":  "London",
+                                                        "continent_name":  "Europe",
+                                                        "country_iso_code":  "GB",
+                                                        "country_name":  "United Kingdom",
+                                                        "location":  {
+                                                                         "lat":  51.5353,
+                                                                         "lon":  -0.6658
+                                                                     },
+                                                        "region_iso_code":  "GB-ENG",
+                                                        "region_name":  "England"
+                                                    },
+                                            "ip":  "167.71.138.137",
+                                            "port":  443
+                                        },
+                        "ecs":  {
+                                    "version":  "1.9.0"
+                                },
+                        "event":  {
+                                      "category":  [
+                                                       "intrusion_detection"
+                                                   ],
+                                      "dataset":  "zeek.notice",
+                                      "kind":  "alert",
+                                      "module":  "zeek",
+                                      "type":  [
+                                                   "info"
+                                               ]
+                                  },
+                        "fileset":  {
+                                        "name":  "notice"
+                                    },
+                        "input":  {
+                                      "type":  "log"
+                                  },
+                        "log":  {
+                                    "file":  {
+                                                 "path":  "/var/log/bro/current/notice.log"
+                                             }
+                                },
+                        "network":  {
+                                        "community_id":  "1:dasp/1nUJLpFqEwOaHdqkYJzDVI=",
+                                        "transport":  "tcp"
+                                    },
+                        "related":  {
+                                        "ip":  [
+                                                   "10.12.1.101",
+                                                   "167.71.138.137"
+                                               ]
+                                    },
+                        "rule":  {
+                                     "description":  "SSL certificate validation failed with (self signed certificate)",
+                                     "name":  "SSL::Invalid_Server_Cert"
+                                 },
+                        "service":  {
+                                        "type":  "zeek"
+                                    },
+                        "source":  {
+                                       "address":  "10.12.1.101",
+                                       "ip":  "10.12.1.101",
+                                       "port":  49804
+                                   },
+                        "tags":  [
+                                     "zeek.notice"
+                                 ],
+                        "zeek":  {
+                                     "notice":  {
+                                                    "fuid":  "F4WCbx4Bpx0graTcC1",
+                                                    "id.orig_h":  "10.12.1.101",
+                                                    "id.resp_h":  "167.71.138.137",
+                                                    "id.resp_p":  443,
+                                                    "msg":  "SSL certificate validation failed with (self signed certificate)",
+                                                    "note":  "SSL::Invalid_Server_Cert",
+                                                    "sub":  "O=Internet Widgits Pty Ltd,ST=Some-State,C=AU,CN=localhost",
+                                                    "suppress_for":  3600
+                                                }
+                                 }
+                    },
+        "_type":  "_doc"
+    },
+    {
+        "_score":  1.0,
+        "_source":  {
+                        "@timestamp":  "2020-12-01T23:40:53.797Z",
+                        "client":  {
+                                       "address":  "10.12.1.101"
+                                   },
+                        "destination":  {
+                                            "address":  "52.230.222.68",
+                                            "as":  {
+                                                       "number":  8075,
+                                                       "organization":  {
+                                                                            "name":  "Microsoft Corporation"
+                                                                        }
+                                                   },
+                                            "geo":  {
+                                                        "city_name":  "Des Moines",
+                                                        "continent_name":  "North America",
+                                                        "country_iso_code":  "US",
+                                                        "country_name":  "United States",
+                                                        "location":  {
+                                                                         "lat":  41.6006,
+                                                                         "lon":  -93.6112
+                                                                     },
+                                                        "region_iso_code":  "US-IA",
+                                                        "region_name":  "Iowa"
+                                                    },
+                                            "ip":  "52.230.222.68",
+                                            "port":  443
+                                        },
+                        "ecs":  {
+                                    "version":  "1.9.0"
+                                },
+                        "event":  {
+                                      "category":  [
+                                                       "network"
+                                                   ],
+                                      "dataset":  "zeek.ssl",
+                                      "kind":  "event",
+                                      "module":  "zeek",
+                                      "type":  [
+                                                   "connection",
+                                                   "protocol"
+                                               ]
+                                  },
+                        "fileset":  {
+                                        "name":  "ssl"
+                                    },
+                        "input":  {
+                                      "type":  "log"
+                                  },
+                        "log":  {
+                                    "file":  {
+                                                 "path":  "/var/log/bro/current/ssl.log"
+                                             }
+                                },
+                        "network":  {
+                                        "community_id":  "1:ExBNhVx98gUchcsBNgd8MDLfvFU=",
+                                        "transport":  "tcp"
+                                    },
+                        "related":  {
+                                        "ip":  [
+                                                   "10.12.1.101",
+                                                   "52.230.222.68"
+                                               ]
+                                    },
+                        "server":  {
+                                       "address":  "52.230.222.68"
+                                   },
+                        "service":  {
+                                        "type":  "zeek"
+                                    },
+                        "source":  {
+                                       "address":  "10.12.1.101",
+                                       "ip":  "10.12.1.101",
+                                       "port":  49764
+                                   },
+                        "tags":  [
+                                     "zeek.ssl"
+                                 ],
+                        "tls":  {
+                                    "cipher":  "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+                                    "client":  {
+                                                   "ja3":  "3b5074b1b5d032e5620f69f9f700ff0e"
+                                               },
+                                    "curve":  "secp384r1",
+                                    "established":  true,
+                                    "resumed":  false,
+                                    "server":  {
+                                                   "issuer":  "CN=Microsoft RSA TLS CA 01,O=Microsoft Corporation,C=US",
+                                                   "ja3s":  "ae4edc6faf64d08308082ad26be60767",
+                                                   "subject":  "CN=*.wns.windows.com",
+                                                   "x509":  {
+                                                                "issuer":  {
+                                                                               "common_name":  "Microsoft RSA TLS CA 01",
+                                                                               "country":  "US",
+                                                                               "organization":  "Microsoft Corporation"
+                                                                           },
+                                                                "subject":  {
+                                                                                "common_name":  "*.wns.windows.com"
+                                                                            }
+                                                            }
+                                               },
+                                    "version":  "1.2",
+                                    "version_protocol":  "tls"
+                                },
+                        "zeek":  {
+                                     "ssl":  {
+                                                 "cipher":  "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+                                                 "client":  {
+
+                                                            },
+                                                 "curve":  "secp384r1",
+                                                 "established":  true,
+                                                 "resumed":  false,
+                                                 "server":  {
+                                                                "cert_chain_fuids":  [
+                                                                                         "FpBEFX2Ni4O76j2F35",
+                                                                                         "FUVK6R1AFqzxIWbbNg"
+                                                                                     ],
+                                                                "issuer":  {
+                                                                               "common_name":  "Microsoft RSA TLS CA 01",
+                                                                               "country":  "US",
+                                                                               "organization":  "Microsoft Corporation"
+                                                                           },
+                                                                "name":  "client.wns.windows.com",
+                                                                "subject":  {
+                                                                                "common_name":  "*.wns.windows.com"
+                                                                            }
+                                                            },
+                                                 "validation":  {
+                                                                    "status":  "ok"
+                                                                },
+                                                 "version":  "TLSv12"
+                                             }
+                                 }
+                    },
+        "_type":  "_doc"
+    },
+    {
+        "_score":  1.0,
+        "_source":  {
+                        "@timestamp":  "2020-12-01T23:40:55.984Z",
+                        "destination":  {
+                                            "address":  "10.12.1.2",
+                                            "ip":  "10.12.1.2",
+                                            "port":  53
+                                        },
+                        "ecs":  {
+                                    "version":  "1.9.0"
+                                },
+                        "event":  {
+                                      "category":  [
+                                                       "network"
+                                                   ],
+                                      "dataset":  "zeek.weird",
+                                      "kind":  "alert",
+                                      "module":  "zeek",
+                                      "type":  [
+                                                   "info"
+                                               ]
+                                  },
+                        "fileset":  {
+                                        "name":  "weird"
+                                    },
+                        "input":  {
+                                      "type":  "log"
+                                  },
+                        "log":  {
+                                    "file":  {
+                                                 "path":  "/var/log/bro/current/weird.log"
+                                             }
+                                },
+                        "related":  {
+                                        "ip":  [
+                                                   "10.12.1.101",
+                                                   "10.12.1.2"
+                                               ]
+                                    },
+                        "rule":  {
+                                     "name":  "DNS_RR_length_mismatch"
+                                 },
+                        "service":  {
+                                        "type":  "zeek"
+                                    },
+                        "source":  {
+                                       "address":  "10.12.1.101",
+                                       "ip":  "10.12.1.101",
+                                       "port":  52537
+                                   },
+                        "tags":  [
+                                     "zeek.weird"
+                                 ],
+                        "zeek":  {
+                                     "weird":  {
+                                                   "name":  "DNS_RR_length_mismatch",
+                                                   "notice":  false,
+                                                   "peer":  "zeek",
+                                                   "source":  "DNS"
+                                               }
+                                 }
+                    },
+        "_type":  "_doc"
+    }
+]

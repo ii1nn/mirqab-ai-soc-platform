@@ -1,0 +1,16 @@
+{
+  "source": "Mock — modeled on the publicly documented splunk/botsv3 (\"Frothly\") CTF storyline, not parsed from downloaded data",
+  "note": "Synthetic demo chain, kept in the same shape as datasets/Security-Datasets/apt29-attack-chain.json so Citadel has a second scenario to render.",
+  "actor": "Unattributed (BOTS v3 CTF scenario)",
+  "steps": [
+    { "step": "1", "stage": "Initial Access", "techniques": ["T1566 Phishing"], "source": "attacker", "target": "KUTYCH-LAPTOP", "description": "Employee (Kevin) opens a malicious attachment, dropping an initial payload." },
+    { "step": "2", "stage": "Execution", "techniques": ["T1059 Command-Line Interface", "T1204 User Execution"], "source": "attacker", "target": "KUTYCH-LAPTOP", "description": "Payload executes a malicious PowerShell/VBS script on the laptop." },
+    { "step": "3", "stage": "Credential Access", "techniques": ["T1552 Unsecured Credentials"], "source": "KUTYCH-LAPTOP", "target": "KUTYCH-LAPTOP", "description": "AWS access keys found stored in plaintext files/browser data on the compromised laptop." },
+    { "step": "4", "stage": "Initial Access (Cloud)", "techniques": ["T1078 Valid Accounts", "T1078.004 Cloud Accounts"], "source": "attacker", "target": "AWS-ACCOUNT", "description": "Stolen AWS credentials used to authenticate to the victim's AWS account from an external IP." },
+    { "step": "5", "stage": "Discovery", "techniques": ["T1580 Cloud Infrastructure Discovery"], "source": "AWS-ACCOUNT", "target": "AWS-ACCOUNT", "description": "Attacker enumerates EC2 instances, S3 buckets, and IAM users/policies." },
+    { "step": "6", "stage": "Resource Hijacking", "techniques": ["T1496 Resource Hijacking"], "source": "AWS-ACCOUNT", "target": "EC2-MINER", "description": "New/existing EC2 instances repurposed to run cryptomining software." },
+    { "step": "7", "stage": "Collection", "techniques": ["T1530 Data from Cloud Storage"], "source": "AWS-ACCOUNT", "target": "S3-BUCKET", "description": "Sensitive files pulled from an exposed/compromised S3 bucket." },
+    { "step": "8", "stage": "Exfiltration", "techniques": ["T1567 Exfiltration Over Web Service"], "source": "S3-BUCKET", "target": "attacker", "description": "Collected data exfiltrated to attacker-controlled infrastructure." },
+    { "step": "9", "stage": "Impact", "techniques": ["T1531 Account Access Removal"], "source": "attacker", "target": "AWS-ACCOUNT", "description": "Legitimate IAM users locked out / credentials rotated by the attacker to hinder response." }
+  ]
+}

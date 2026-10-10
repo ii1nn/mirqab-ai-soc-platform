@@ -1,0 +1,180 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * Mirqab design tokens — single source of truth for color/shape values.
+ * tailwind.config.ts's `mirqab.*` palette reads from these variables, so
+ * every `bg-mirqab-*`/`text-mirqab-*`/`border-mirqab-*` utility class across
+ * the app (and apps/employee-desktop's matching token set) stays in sync
+ * from one place instead of duplicated hex literals per file.
+ */
+:root {
+  /* Colors are space-separated "R G B" channels (not hex/rgb()) — this is
+     the format Tailwind's `rgb(var(--x) / <alpha-value>)` pattern needs so
+     opacity-modifier utilities (`bg-mirqab-accent/20`, `border-mirqab-danger/30`,
+     etc.) keep working with a CSS-variable-backed color. A plain hex/var()
+     string can't be combined with Tailwind's `/NN` opacity syntax — see
+     tailwind.config.ts's colors block for the consuming side.
+
+     Surfaces — deep space background, lifted progressively for layering. */
+  --mirqab-bg: 11 8 23;
+  --mirqab-bg-elevated: 15 11 31;
+  --mirqab-surface: 21 15 38;
+  --mirqab-surface-elevated: 26 19 48;
+  --mirqab-border: rgba(148, 113, 255, 0.16);
+  --mirqab-border-strong: rgba(148, 113, 255, 0.32);
+
+  /* Brand */
+  --mirqab-accent: 124 58 237;
+  --mirqab-accent-pink: 236 72 153;
+
+  /* Semantic/severity — cyan-teal for healthy/active, red for critical,
+     amber for high/suspicious, blue for informational. Kept as the
+     existing `success`/`danger`/`warning`/`blue` slots so every current
+     usage re-skins automatically rather than needing a rename sweep. */
+  --mirqab-healthy: 20 224 196;
+  --mirqab-critical: 255 59 92;
+  --mirqab-high: 245 158 11;
+  --mirqab-medium: 251 191 36;
+  --mirqab-info: 59 130 246;
+
+  /* Text hierarchy */
+  --mirqab-text-primary: 241 245 249;
+  --mirqab-text-secondary: 148 163 184;
+  --mirqab-text-muted: 100 116 139;
+
+  /* Shape */
+  --mirqab-radius-sm: 10px;
+  --mirqab-radius-md: 14px;
+  --mirqab-radius-lg: 18px;
+
+  /* Theme-reactive stand-ins for Tailwind's own `white`/`slate-*` keywords
+     (see tailwind.config.ts) — lets every existing `bg-white/5`,
+     `text-slate-400`, etc. utility across the app re-skin for light mode
+     automatically, without a rewrite sweep. Dark-mode values here are
+     exactly Tailwind's real defaults for those shades, so nothing visually
+     changes until [data-theme="light"] below applies. */
+  --mirqab-white: 255 255 255;
+  /* Parallel token for the pervasive `bg-black/20`-style "recessed surface"
+     pattern (list rows, tab wells, canvas containers) — real black in dark
+     mode (zero visual change from today), a legible dark-slate tint in
+     light mode instead of harsh black-on-white. Modal.tsx's true page-dim
+     backdrop intentionally stays literal `bg-black/60`, not this token. */
+  --mirqab-black: 0 0 0;
+  --mirqab-slate-100: 241 245 249;
+  --mirqab-slate-200: 226 232 240;
+  --mirqab-slate-300: 203 213 225;
+  --mirqab-slate-400: 148 163 184;
+  --mirqab-slate-500: 100 116 139;
+  --mirqab-slate-600: 71 85 105;
+  --mirqab-slate-900: 15 23 42;
+
+  /* Subtle neutral "track"/idle stroke for inline SVG (ThreatTopology,
+     ScoreGauge) that can't use a Tailwind utility class — faint light-on-dark
+     in dark mode, faint dark-on-light in light mode. */
+  --mirqab-track-stroke: rgba(255, 255, 255, 0.1);
+
+  /* Live Network Map / Attack Path canvas — an OPAQUE recessed surface
+     (not a translucent bg-black/20-style wash) so contrast against it stays
+     predictable regardless of theme. Dark mode matches today's real visual
+     result (near-black). Light mode is a clean white, deliberately distinct
+     from the slightly-off-white page (--mirqab-bg) so the canvas still
+     reads as its own panel. */
+  --mirqab-topology-surface: 6 4 14;
+  /* ReactFlow's dot-grid <Background color>. Same purple accent hue in both
+     themes (never recolored) — light mode gets a touch more opacity since
+     the same alpha reads fainter against a light canvas than a dark one. */
+  --mirqab-topology-grid-dot: rgba(124, 58, 237, 0.08);
+}
+
+/**
+ * Light theme overrides. Not a naive invert — surfaces go to white/near-white
+ * neutrals, text hierarchy goes dark, borders go subtle-dark instead of
+ * subtle-light, and every brand/semantic color (accent purple, healthy cyan,
+ * critical red, high orange, info blue) is preserved unchanged so severity
+ * meaning never shifts between themes.
+ */
+:root[data-theme='light'] {
+  --mirqab-bg: 248 250 252;
+  --mirqab-bg-elevated: 255 255 255;
+  --mirqab-surface: 255 255 255;
+  --mirqab-surface-elevated: 241 245 249;
+  --mirqab-border: rgba(15, 23, 42, 0.1);
+  --mirqab-border-strong: rgba(15, 23, 42, 0.18);
+
+  --mirqab-text-primary: 15 23 42;
+  --mirqab-text-secondary: 71 85 105;
+  --mirqab-text-muted: 100 116 139;
+
+  --mirqab-white: 15 23 42;
+  --mirqab-black: 15 23 42;
+  --mirqab-slate-100: 15 23 42;
+  --mirqab-slate-200: 30 41 59;
+  --mirqab-slate-300: 51 65 85;
+  --mirqab-slate-400: 100 116 139;
+  --mirqab-slate-500: 100 116 139;
+  /* Darker than a naive flip would give (was 148 163 184, i.e. LIGHTER than
+     slate-500 — too low-contrast on white for de-emphasized captions like
+     the map's reference-node labels). Still reads as more muted than 500,
+     preserving the same relative hierarchy dark mode has. */
+  --mirqab-slate-600: 113 128 150;
+  --mirqab-slate-900: 248 250 252;
+
+  --mirqab-track-stroke: rgba(15, 23, 42, 0.1);
+
+  --mirqab-topology-surface: 255 255 255;
+  --mirqab-topology-grid-dot: rgba(124, 58, 237, 0.14);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    background-color: rgb(var(--mirqab-bg));
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(124, 58, 237, 0.35);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(124, 58, 237, 0.55);
+  }
+
+  /* Visible keyboard focus everywhere — mouse/touch clicks don't get the
+     ring (`:focus-visible`), so it never fires as visual noise on click,
+     only for actual keyboard navigation. */
+  :focus-visible {
+    outline: 2px solid var(--mirqab-accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply rounded-xl2 border border-white/10 bg-white/[0.04] shadow-xl shadow-black/30 backdrop-blur-md;
+  }
+
+  .glass-panel {
+    @apply rounded-xl2 border border-mirqab-accent/20 bg-mirqab-surface/70 shadow-2xl shadow-black/50 backdrop-blur-xl;
+  }
+
+  .neon-ring {
+    box-shadow:
+      0 0 0 1px rgba(124, 58, 237, 0.35),
+      0 0 20px -4px rgba(124, 58, 237, 0.55);
+  }
+}

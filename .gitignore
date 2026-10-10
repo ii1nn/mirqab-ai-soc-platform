@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-electron/
+build/
+coverage/
+release/
+*.tsbuildinfo
+
+# Electron packaging output
+apps/employee-desktop/release/
+
+# Env files — never commit real secrets, only the checked-in example templates
+.env
+.env.local
+.env.demo
+.env.*
+infra/docker/.env
+infra/demo/.env.demo
+!.env.example
+!.env.demo.example
+
+# Private keys and certificates (see infra/docker/nginx/certs/generate-self-signed-cert.sh)
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Upstream Wazuh lab checkout (obtain from https://github.com/wazuh/wazuh-docker)
+wazuh-docker/
+
+# AI coding-tool configuration and temporary developer files
+.claude/
+.tmp/
+
+# Archives
+*.zip
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor/OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

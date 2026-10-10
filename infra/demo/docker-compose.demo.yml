@@ -1,0 +1,130 @@
+# Mirqab evaluator demo stack — self-contained, reproducible, safe.
+#
+#   cp infra/demo/.env.demo.example infra/demo/.env.demo   # then edit it
+#   docker compose -f infra/demo/docker-compose.demo.yml --env-file infra/demo/.env.demo up -d --build
+#   open http://localhost:8080
+#
+# What it does on a completely fresh machine:
+#   fresh PostgreSQL volume → `prisma migrate deploy` → seed (demo
+#   organization, demo Admin, departments, devices, policies) → backend →
+#   DemoDataService imports ONLY the bundled, license-cleared open-source
+#   datasets (OTRF Security-Datasets APT29 plan, PcapMonkey Zeek events)
+#   through Mirqab's own ingestion pipeline → SOC dashboard on :8080.
+#
+# Safety: no endpoint-control provider is configured (Wazuh/EDR URLs are
+# forced empty), so automated containment can never isolate a real
+# endpoint — the 5-minute response window reports "automated containment
+# unavailable" instead. The production isolation code is unchanged.
+#
+# Independent of the production stack (infra/docker): its own project name,
+# volumes and network; PostgreSQL/Redis are not published to the host.
+name: mirqab-demo
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mirqab}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in infra/demo/.env.demo}
+      POSTGRES_DB: ${POSTGRES_DB:-mirqab}
+    volumes:
+      - demo_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-mirqab} -d ${POSTGRES_DB:-mirqab}']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      - ../docker/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - demo_redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ../../backend
+    volumes:
+      # Only the two license-cleared datasets the demo imports — nothing else
+      # under datasets/ is visible to the demo backend.
+      - ../../datasets/Security-Datasets:/app/datasets/Security-Datasets:ro
+      - ../../datasets/PcapMonkey:/app/datasets/PcapMonkey:ro
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-mirqab}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-mirqab}?schema=public
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Set JWT_ACCESS_SECRET (32+ random chars) in infra/demo/.env.demo}
+      JWT_ACCESS_EXPIRES_IN: 15m
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET (32+ random chars) in infra/demo/.env.demo}
+      JWT_REFRESH_EXPIRES_IN: 7d
+      BCRYPT_SALT_ROUNDS: 12
+      CORS_ORIGIN: http://localhost:${DEMO_HTTP_PORT:-8080}
+      MONITORING_INGEST_API_KEY: ${MONITORING_INGEST_API_KEY:?Set MONITORING_INGEST_API_KEY (16+ random chars) in infra/demo/.env.demo}
+      REDIS_URL: redis://redis:6379
+
+      # Demo organization + Admin (seed.ts creates both only if missing).
+      SEED_ORGANIZATION_NAME: Mirqab Demo Organization
+      SEED_ORGANIZATION_SLUG: mirqab-demo
+      ADMIN_EMAIL: ${DEMO_ADMIN_EMAIL:?Set DEMO_ADMIN_EMAIL in infra/demo/.env.demo}
+      ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:?Set DEMO_ADMIN_PASSWORD (8+ chars) in infra/demo/.env.demo}
+      # Optional RBAC-demonstration accounts (created only if both are set).
+      DEMO_ANALYST_EMAIL: ${DEMO_ANALYST_EMAIL:-}
+      DEMO_ANALYST_PASSWORD: ${DEMO_ANALYST_PASSWORD:-}
+      DEMO_TECHNICIAN_EMAIL: ${DEMO_TECHNICIAN_EMAIL:-}
+      DEMO_TECHNICIAN_PASSWORD: ${DEMO_TECHNICIAN_PASSWORD:-}
+
+      # Import the bundled open-source datasets (DemoDataService).
+      MIRQAB_DEMO_DATA: 'true'
+
+      # SAFE DEMO CONFIGURATION — deliberately no real endpoint control and
+      # no external AI. Hard-coded empty here (not read from .env.demo) so a
+      # copied production .env can't accidentally enable them.
+      WAZUH_API_URL: ''
+      WAZUH_API_USER: ''
+      WAZUH_API_PASSWORD: ''
+      WAZUH_ISOLATION_AR_COMMAND: ''
+      ENDPOINT_CONTROL_API_URL: ''
+      ENDPOINT_CONTROL_API_KEY: ''
+      SELF_HOSTED_AI_URL: ''
+      ANTHROPIC_API_KEY: ''
+      ALLOW_EXTERNAL_AI_DEV_ONLY: 'false'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  soc-dashboard:
+    build:
+      context: ../../apps/soc-dashboard
+      args:
+        VITE_API_BASE_URL: /api/v1
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # Plain-HTTP, localhost-only entrypoint (no TLS certificates to provision
+  # for a local demo). Same routing as infra/docker/nginx/nginx.conf.
+  gateway:
+    image: nginx:1.25-alpine
+    volumes:
+      - ./nginx-demo.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - '127.0.0.1:${DEMO_HTTP_PORT:-8080}:80'
+    depends_on:
+      - backend
+      - soc-dashboard
+    restart: unless-stopped
+
+volumes:
+  demo_postgres_data:
+  demo_redis_data:

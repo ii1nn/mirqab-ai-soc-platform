@@ -1,0 +1,45 @@
+<!--
+  Add inside <ossec_config> in /var/ossec/etc/ossec.conf on the WAZUH
+  MANAGER, after installing isolate-host.ps1 (Windows) or isolate-host.sh
+  (Linux) on the AGENT(s) you want isolatable — see this folder's scripts
+  for install paths and required chmod/chown.
+
+  <name> below is the exact value you must set as WAZUH_ISOLATION_AR_COMMAND
+  in backend/.env — until you've done both (registered it here AND set that
+  env var), EndpointControlService.isolate() has no real command to invoke
+  and stays in its honest "not configured" state.
+
+  Field reference (verified against
+  https://documentation.wazuh.com/current/user-manual/capabilities/active-response/custom-active-response-scripts.html
+  at implementation time — reconfirm against your installed version):
+    <executable>  must match the script's filename exactly, as installed in
+                  the agent's active-response/bin directory.
+    <timeout_allowed> yes — required for the <timeout> below to have effect.
+    <location>local  runs on the specific agent(s) targeted by the API call
+                  (PUT /active-response?agents_list=<id>), not every agent.
+    <timeout>     seconds until the manager automatically re-invokes this
+                  script with "command":"delete" to reverse the isolation —
+                  THIS is the real safety net against a stuck/forgotten
+                  isolation, not anything MIRQAB's backend does. Tune to your
+                  own incident-response SLA; 3600 (1h) shown as a starting
+                  point, not a recommendation.
+    No <rules_id>/<rules_group>/<level> block is set here on purpose — this
+    command is meant to be triggered on-demand via the API (MIRQAB's
+    isolation button), not automatically by every matching alert. Omitting
+    those tags means it will only ever fire when explicitly called via
+    PUT /active-response, exactly like the "!<command>" convention
+    WazuhActiveResponseProvider uses.
+-->
+<command>
+  <name>mirqab-isolate</name>
+  <executable>isolate-host.ps1</executable>
+  <!-- Linux/macOS agents: <executable>isolate-host.sh</executable> instead -->
+  <timeout_allowed>yes</timeout_allowed>
+</command>
+
+<active-response>
+  <disabled>no</disabled>
+  <command>mirqab-isolate</command>
+  <location>local</location>
+  <timeout>3600</timeout>
+</active-response>

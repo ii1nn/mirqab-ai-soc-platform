@@ -1,0 +1,16 @@
+<!--
+  Add inside <ossec_config> in /var/ossec/etc/ossec.conf on the Wazuh manager,
+  after installing mirqab-integration.py as /var/ossec/integrations/custom-mirqab
+  (+ a custom-mirqab.py symlink to it, chmod 750, owned by root:wazuh — Wazuh
+  requires that exact naming convention for custom integrations to be picked up).
+
+  <level>7</level> forwards MEDIUM+ severity rules only, so Wazuh's own noisy
+  low-level rules don't flood the AI triage pipeline — adjust to taste.
+-->
+<integration>
+    <name>custom-mirqab</name>
+    <hook_url>http://backend:3000/api/v1/monitoring/wazuh</hook_url>
+    <api_key>REPLACE_WITH_MONITORING_INGEST_API_KEY</api_key>
+    <level>7</level>
+    <alert_format>json</alert_format>
+</integration>
